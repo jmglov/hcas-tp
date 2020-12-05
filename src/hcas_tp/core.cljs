@@ -1,14 +1,21 @@
 (ns hcas-tp.core
-  (:require [reagent.dom :as dom]))
+  (:require [hcas-tp.config :as config]
+            [hcas-tp.events :as events]
+            [hcas-tp.views :as views]
+            [re-frame.core :as rf]
+            [reagent.dom :as dom]))
 
-(defn root-view []
-  [:div
-   "Welcome!"])
+(defn dev-setup []
+  (when config/debug?
+    (enable-console-print!)
+    (println "dev mode")))
 
-(defn ^:dev/after-load render []
-  (dom/render [root-view]
-                  (js/document.getElementById "hcas-tp"))
-  (println "OK, I'm reloaded!"))
+(defn ^:dev/after-load mount-root []
+  (rf/clear-subscription-cache!)
+  (dom/render [views/main]
+              (.getElementById js/document "app")))
 
-(defn init []
-  (render))
+(defn ^:export init []
+  (rf/dispatch-sync [::events/initialize-db])
+  (dev-setup)
+  (mount-root))
