@@ -5,7 +5,7 @@
 
  :builds {;; example build config, usage suitable for user apps
           :app {:target :browser
-                :modules {:base {:init-fn shadow-re-frame.simple/init}}
+                :modules {:base {:init-fn hcas-tp.core/init}}
                 :output-dir "public/js/compiled"
                 :asset-path "/js/compiled"
                 :compiler-options {:closure-defines {re-frame.trace.trace-enabled? true}}
@@ -16,10 +16,10 @@
 
           ;; docs build (includes 10x in the release)
           :docs {:target :browser
-                 :modules {:base {:init-fn shadow-re-frame.simple/init
+                 :modules {:base {:init-fn hcas-tp.core/init
                                   :entries [devtools.preload
                                             day8.re-frame-10x.preload
-                                            shadow-re-frame.simple]}}
+                                            hcas-tp.core]}}
                  :output-dir "docs/js/compiled"
                  :asset-path "/js/compiled"
                  :compiler-options {:closure-defines {re-frame.trace.trace-enabled? true}
@@ -30,16 +30,4 @@
                                     :optimizations :simple}
                  :devtools {:http-root "docs"
                             :http-port 8701
-                            :after-load shadow-re-frame.simple/render}}}}
-
-;; default shadow-cljs configuration
-#_{:source-paths
- ["src/dev"
-  "src/main"
-  "src/test"]
-
- :dependencies
- []
-
- :builds
- {}}
+                            :after-load hcas-tp.core/render}}}}
