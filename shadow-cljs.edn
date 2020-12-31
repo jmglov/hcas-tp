@@ -1,5 +1,7 @@
 {:deps true
 
+ :source-paths ["src/cljs"]
+
  ;; set an nrepl port for connection to a REPL.
  :nrepl {:port 8777}
 
