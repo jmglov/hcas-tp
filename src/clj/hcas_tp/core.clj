@@ -1,5 +1,9 @@
 (ns hcas-tp.core
-  (:require [clojure.string :as string]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as string]
+            [amazonica.aws.s3 :as s3]
+            [amazonica.aws.transcribe :as transcribe]
+            [camel-snake-kebab.core :as csk]
             [clj-http.client :as http]
             [hickory.core :as hickory]
             [hickory.select :as s])
@@ -109,3 +113,91 @@
         :title episode-title}
        (map (fn [[k f]] [k (f episode)]))
        (into {})))
+
+(defn s3-object-exists? [bucket key]
+  (try
+    (s3/get-object :bucket-name bucket
+                   :key key)
+    true
+    (catch Exception _
+      false)))
+
+(def ->job-name csk/->Camel_Snake_Case)
+
+(defn ->slug [raw-transcript]
+  (-> raw-transcript
+      (string/replace #"-." #(-> % string/lower-case (subs 1)))
+      (string/replace #"[.]json$" "")
+      csk/->kebab-case))
+
+(defn episode-for-slug [episodes slug]
+  (some #(and (= slug (episode-slug %)) %) episodes))
+
+(defn mp3-filename [dir episode]
+  (let [slug (episode-slug episode)]
+    (str dir "/episodes/" (->job-name slug) "/" (->job-name slug) ".mp3")))
+
+(defn otr-filename [dir episode]
+  (let [slug (episode-slug episode)]
+    (str dir "/episodes/" (->job-name slug) "/" (->job-name slug) ".otr")))
+
+(defn download-episode
+  ([dir episode]
+   (download-episode false dir episode))
+  ([force-download? dir episode]
+   (let [mp3-url (episode-mp3 episode)
+         filename (mp3-filename dir episode)
+         file (io/file filename)]
+     (when (or force-download? (not (.exists file)))
+       (io/make-parents filename)
+       (some-> (http/get mp3-url {:as :byte-array}) :body (io/copy file))))
+   episode))
+
+(defn upload-mp3
+  ([mp3-bucket mp3-prefix dir episode]
+   (upload-mp3 false mp3-bucket mp3-prefix dir episode))
+  ([force-upload? mp3-bucket mp3-prefix dir episode]
+   (let [filename (mp3-filename dir episode)
+         file (io/file filename)
+         s3-key (str mp3-prefix "/" (.getName file))]
+     (when (or force-upload?
+               (not (s3-object-exists? mp3-bucket s3-key)))
+       (s3/put-object :bucket-name mp3-bucket
+                      :key s3-key
+                      :file file)))
+   episode))
+
+(defn upload-otr [otr-bucket otr-prefix dir episode]
+  (let [slug (episode-slug episode)]
+    (s3/put-object :bucket-name otr-bucket
+                   :key (str otr-prefix "/" slug ".otr")
+                   :file (io/file (otr-filename dir episode))))
+  episode)
+
+(defn job-exists? [episode]
+  (try
+    (->> episode
+         episode-slug
+         ->job-name
+         (transcribe/get-transcription-job :transcription-job-name))
+    true
+    (catch Exception _
+      false)))
+
+(defn start-job
+  ([mp3-bucket mp3-prefix jobs-bucket episode]
+   (start-job false {} mp3-bucket mp3-prefix jobs-bucket episode))
+  ([force-start? options mp3-bucket mp3-prefix jobs-bucket episode]
+   (let [job-name (->> episode episode-slug ->job-name)
+         {:keys [language-code num-speakers]} (merge {:language-code "en-US"
+                                                      :num-speakers 2}
+                                                     options)]
+     (transcribe/start-transcription-job
+      :transcription-job-name job-name
+      :language-code language-code
+      :media-format "mp3"
+      :media {:media-file-uri (format "s3://%s/%s/%s.mp3"
+                                      mp3-bucket mp3-prefix job-name)}
+      :output-bucket-name jobs-bucket
+      :settings {:show-speaker-labels true
+                 :max-speaker-labels num-speakers}))))
