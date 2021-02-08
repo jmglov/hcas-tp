@@ -115,12 +115,7 @@
        (into {})))
 
 (defn s3-object-exists? [bucket key]
-  (try
-    (s3/get-object :bucket-name bucket
-                   :key key)
-    true
-    (catch Exception _
-      false)))
+  (s3/does-object-exist bucket key))
 
 (def ->job-name csk/->Camel_Snake_Case)
 
@@ -133,13 +128,18 @@
 (defn episode-for-slug [episodes slug]
   (some #(and (= slug (episode-slug %)) %) episodes))
 
-(defn mp3-filename [dir episode]
+(defn local-filename [dir extension episode]
   (let [slug (episode-slug episode)]
-    (str dir "/episodes/" (->job-name slug) "/" (->job-name slug) ".mp3")))
+    (str dir "/episodes/" (->job-name slug) "/" (->job-name slug) extension)))
+
+(defn mp3-filename [dir episode]
+  (local-filename dir ".mp3" episode))
 
 (defn otr-filename [dir episode]
-  (let [slug (episode-slug episode)]
-    (str dir "/episodes/" (->job-name slug) "/" (->job-name slug) ".otr")))
+  (local-filename dir ".otr" episode))
+
+(defn transcript-filename [dir episode]
+  (local-filename dir ".json" episode))
 
 (defn download-episode
   ([dir episode]
@@ -152,6 +152,19 @@
        (io/make-parents filename)
        (some-> (http/get mp3-url {:as :byte-array}) :body (io/copy file))))
    episode))
+
+(defn download-transcript
+  ([jobs-bucket dir episode]
+   (download-transcript false jobs-bucket dir episode))
+  ([force-download? jobs-bucket dir episode]
+   (let [slug (episode-slug episode)
+         in (->> (s3/get-object :bucket-name jobs-bucket
+                                :key (str (->job-name slug) ".json"))
+                 :input-stream)
+         out (io/file (transcript-filename dir episode))]
+     (io/copy in out)
+     (.close in)
+     episode)))
 
 (defn upload-mp3
   ([mp3-bucket mp3-prefix dir episode]
