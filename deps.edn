@@ -8,4 +8,7 @@
  :aliases {:dev {:extra-paths ["dev/clj"]
                  :extra-deps {camel-snake-kebab {:mvn/version "0.4.2"}
                               clj-http/clj-http {:mvn/version "3.10.3"}
-                              amazonica/amazonica {:mvn/version "0.3.153"}}}}}
+                              amazonica/amazonica {:mvn/version "0.3.153"}
+                              transcribble/transcribble {:git/url "https://github.com/jmglov/transcribble.git"
+                                                         :sha "4ba9f101266c99abdf3e52c81cac6790370104ca"
+                                                         :tag "20210208.0721.27"}}}}}
